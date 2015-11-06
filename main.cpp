@@ -435,19 +435,19 @@ void worker(worker_input* input, worker_tau* tau_in, worker_output* output, mana
     {
         S
     });
-    SX Sdt = St.gradient()({t})[0];
+    SX Sdt = St.gradient()(vector<SX>{t})[0];
 
 
     SXFunction HSr("HSr",{f},
     {
         Sdt
     });
-    SX HSrdf = HSr.gradient()({f})[0];
+    SX HSrdf = HSr.gradient()(vector<SX>{f})[0];
     SXFunction HSi("HSi",{f},
     {
         -E
     });
-    SX HSidf = HSi.gradient()({f})[0];
+    SX HSidf = HSi.gradient()(vector<SX>{f})[0];
 
     SX ode = SX::sym("ode", 2 * L * dim);
     for (int j = 0; j < L * dim; j++) {

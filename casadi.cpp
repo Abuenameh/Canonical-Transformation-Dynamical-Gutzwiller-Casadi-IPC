@@ -146,13 +146,13 @@ DynamicsProblem::DynamicsProblem(double Wi, double Wf, double mu, vector<double>
 
     SX S = canonical(f, J, U0, dU, mu);
     SXFunction St("St", {t}, {S});
-    SX Sdt = St.gradient()({t})[0];
+    SX Sdt = St.gradient()(vector<SX>{t})[0];
 
 
     SXFunction HSr("HSr", {f}, {Sdt});
-    SX HSrdf = HSr.gradient()({f})[0];
+    SX HSrdf = HSr.gradient()(vector<SX>{f})[0];
     SXFunction HSi("HSi", {f}, {-E});
-    SX HSidf = HSi.gradient()({f})[0];
+    SX HSidf = HSi.gradient()(vector<SX>{f})[0];
 
     SX ode = SX::sym("ode", 2 * L * dim);
     for (int j = 0; j < L * dim; j++) {
