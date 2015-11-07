@@ -651,22 +651,24 @@ int main(int argc, char** argv) {
         vector<double> Efres;
         vector<double> Qres;
         vector<double> pres;
-        vector<complex_vector> b0res;
-        vector<complex_vector> bfres;
-        vector<complex_vector_vector> f0res;
-        vector<complex_vector_vector> ffres;
+        vector<vector<complex<double>>> b0res;
+        vector<vector<complex<double>>> bfres;
+//        vector<complex_vector_vector> f0res;
+//        vector<complex_vector_vector> ffres;
         vector<std::string> runtimeres;
 
-        for (results ires : res) {
+        for (results& ires : res) {
             taures.push_back(ires.tau);
             Eires.push_back(ires.Ei);
             Efres.push_back(ires.Ef);
             Qres.push_back(ires.Q);
             pres.push_back(ires.p);
-            b0res.push_back(ires.b0);
-            bfres.push_back(ires.bf);
-            f0res.push_back(ires.f0);
-            ffres.push_back(ires.ff);
+            vector<complex<double>> b0(ires.b0.begin(), ires.b0.end());
+            vector<complex<double>> bf(ires.bf.begin(), ires.bf.end());
+            b0res.push_back(b0);
+            bfres.push_back(bf);
+//            f0res.push_back(ires.f0);
+//            ffres.push_back(ires.ff);
             std::string runtime(ires.runtime.begin(), ires.runtime.end());
             runtimeres.push_back(replace_all_copy(runtime, "\"", "\\\""));
         }
