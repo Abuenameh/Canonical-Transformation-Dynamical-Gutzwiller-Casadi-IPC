@@ -15,3 +15,5 @@
 /orderparameter copy.hpp
 /orderparameter copy.cpp
 /nbproject/
+/build/
+/dist/

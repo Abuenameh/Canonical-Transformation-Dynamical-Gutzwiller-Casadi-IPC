@@ -272,7 +272,7 @@ worker_input* initialize(double Wi, double Wf, double mu, vector<double>& xi, ma
 
     map<string, DMatrix> res = solver(arg);
     vector<double> x0 = res["x"].nonzeros();
-    //    vector<double> x0 = xrand;
+//        vector<double> x0 = xrand;
 
     vector<complex<double>> x0i(dim);
     for (int i = 0; i < L; i++) {
@@ -321,7 +321,7 @@ complex<double> dot(complex_vector& v, complex_vector& w) {
 }
 
 void evolve(SXFunction& E0, SXFunction& ode_func, double tau, worker_input* input, worker_output* output, managed_shared_memory& segment) {
-    double tauf = 2e-7;
+    double tauf = 2e-6;
     double dt = 0.9e-9;
     Integrator integrator_rk("integrator", "rk", ode_func, make_dict("t0", 0, "tf", 2 * tau, "number_of_finite_elements", ceil((2 * tauf) / dt)));
     Integrator integrator_cvodes("integrator", "cvodes", ode_func, make_dict("t0", 0, "tf", 2 * tau, "exact_jacobian", false, "max_num_steps", 100000));
@@ -435,19 +435,19 @@ void worker(worker_input* input, worker_tau* tau_in, worker_output* output, mana
     {
         S
     });
-    SX Sdt = St.gradient()({t})[0];
+    SX Sdt = St.gradient()(vector<SX>{t})[0];
 
 
     SXFunction HSr("HSr",{f},
     {
         Sdt
     });
-    SX HSrdf = HSr.gradient()({f})[0];
+    SX HSrdf = HSr.gradient()(vector<SX>{f})[0];
     SXFunction HSi("HSi",{f},
     {
         -E
     });
-    SX HSidf = HSi.gradient()({f})[0];
+    SX HSidf = HSi.gradient()(vector<SX>{f})[0];
 
     SX ode = SX::sym("ode", 2 * L * dim);
     for (int j = 0; j < L * dim; j++) {
