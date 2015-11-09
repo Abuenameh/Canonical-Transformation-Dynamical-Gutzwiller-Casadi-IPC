@@ -253,7 +253,7 @@ worker_input* initialize(double Wi, double Wf, double mu, vector<double>& xi, ma
 
     SX E = energy(f, J, U0, dU, mu);
 
-    SXFunction nlp("nlp", nlpIn("x", f), nlpOut("f", E));
+    SXFunction nlp("nlp", nlpIn("x", f), nlpOut("f", E), make_dict("jit", true, "compiler", "shell"));
     NlpSolver solver("solver", "ipopt", nlp, make_dict("hessian_approximation", "limited-memory", "linear_solver", "ma86", "print_level", 0, "print_time", false));
 
     boost::random::mt19937 rng;
@@ -321,7 +321,7 @@ complex<double> dot(complex_vector& v, complex_vector& w) {
 }
 
 void evolve(SXFunction& E0, SXFunction& ode_func, double tau, worker_input* input, worker_output* output, managed_shared_memory& segment) {
-    double tauf = 2e-6;
+    double tauf = 2e-7;
     double dt = 0.9e-9;
     Integrator integrator_rk("integrator", "rk", ode_func, make_dict("t0", 0, "tf", 2 * tau, "number_of_finite_elements", ceil((2 * tauf) / dt)));
     Integrator integrator_cvodes("integrator", "cvodes", ode_func, make_dict("t0", 0, "tf", 2 * tau, "exact_jacobian", false, "max_num_steps", 100000));
