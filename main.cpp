@@ -253,7 +253,7 @@ worker_input* initialize(double Wi, double Wf, double mu, vector<double>& xi, ma
 
     SX E = energy(f, J, U0, dU, mu);
 
-    SXFunction nlp("nlp", nlpIn("x", f), nlpOut("f", E), make_dict("jit", true, "compiler", "shell"));
+    SXFunction nlp("nlp", nlpIn("x", f), nlpOut("f", E));
     NlpSolver solver("solver", "ipopt", nlp, make_dict("hessian_approximation", "limited-memory", "linear_solver", "ma86", "print_level", 0, "print_time", false));
 
     boost::random::mt19937 rng;
