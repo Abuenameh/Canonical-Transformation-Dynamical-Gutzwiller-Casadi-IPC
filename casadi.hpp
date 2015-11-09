@@ -52,10 +52,20 @@ inline SX UW(SX W) {
     return -2 * (g24 * g24) / Delta * (Ng * Ng * W * W) / ((Ng * Ng + W * W) * (Ng * Ng + W * W));
 }
 
-SX energy(SX& fin, SX& J, SX& U0, SX& dU, double mu);
-SX energy(int i, int n, SX& fin, SX& J, SX& U0, SX& dU, double mu);
-SX canonical(SX& fin, SX& J, SX& U0, SX& dU, double mu);
-SX canonical(int i, int n, SX& f, SX& J, SX& U0, SX& dU, double mu);
+//SX energy(SX& fin, SX& J, SX& U0, SX& dU, double mu);
+//SX energy(int i, int n, SX& fin, SX& J, SX& U0, SX& dU, double mu);
+//SX canonical(SX& fin, SX& J, SX& U0, SX& dU, double mu);
+//SX canonical(int i, int n, SX& f, SX& J, SX& U0, SX& dU, double mu);
+
+template<class T> SX energy(SX& fin, SX& J, SX& U0, SX& dU, T mu);
+template<class T> SX energy(int i, int n, SX& fin, SX& J, SX& U0, SX& dU, T mu);
+template<class T> SX canonical(SX& fin, SX& J, SX& U0, SX& dU, T mu);
+template<class T> SX canonical(int i, int n, SX& f, SX& J, SX& U0, SX& dU, T mu);
+
+//SX energy(SX& fin, SX& J, SX& U0, SX& dU, SX& mu);
+//SX energy(int i, int n, SX& fin, SX& J, SX& U0, SX& dU, SX& mu);
+//SX canonical(SX& fin, SX& J, SX& U0, SX& dU, SX& mu);
+//SX canonical(int i, int n, SX& f, SX& J, SX& U0, SX& dU, SX& mu);
 
 complex<double> dot(vector<complex<double>>&v, vector<complex<double>>&w);
 

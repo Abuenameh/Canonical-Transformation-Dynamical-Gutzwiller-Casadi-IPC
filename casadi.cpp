@@ -8,6 +8,11 @@ using namespace boost::filesystem;
 #include "casadi.hpp"
 #include "orderparameter.hpp"
 
+template SX energy<SX>(SX& fin, SX& J, SX& U0, SX& dU, SX mu);
+template SX canonical<SX>(SX& fin, SX& J, SX& U0, SX& dU, SX mu);
+template SX energy<double>(SX& fin, SX& J, SX& U0, SX& dU, double mu);
+template SX canonical<double>(SX& fin, SX& J, SX& U0, SX& dU, double mu);
+
 //double JW(double W) {
 //    return alpha * (W * W) / (Ng * Ng + W * W);
 //}
@@ -595,7 +600,7 @@ SX DynamicsProblem::canonical(int i, int n, SX& fin, SX& J, SX& U0, SX& dU, doub
     return S.imag();
 }
 
-SX energy(SX& fin, SX& J, SX& U0, SX& dU, double mu) {
+template<class T> SX energy(SX& fin, SX& J, SX& U0, SX& dU, T mu) {
 
     SX E = 0;
     for (int i = 0; i < L; i++) {
@@ -606,7 +611,7 @@ SX energy(SX& fin, SX& J, SX& U0, SX& dU, double mu) {
     return E;
 }
 
-SX energy(int i, int n, SX& fin, SX& J, SX& U0, SX& dU, double mu) {
+template<class T> SX energy(int i, int n, SX& fin, SX& J, SX& U0, SX& dU, T mu) {
 
     complex<SX> expth = complex<SX>(1, 0);
     complex<SX> expmth = ~expth;
@@ -892,7 +897,7 @@ SX energy(int i, int n, SX& fin, SX& J, SX& U0, SX& dU, double mu) {
     return E.real();
 }
 
-SX canonical(SX& fin, SX& J, SX& U0, SX& dU, double mu) {
+template<class T> SX canonical(SX& fin, SX& J, SX& U0, SX& dU, T mu) {
 
     SX S = 0;
     for (int i = 0; i < L; i++) {
@@ -903,7 +908,7 @@ SX canonical(SX& fin, SX& J, SX& U0, SX& dU, double mu) {
     return S;
 }
 
-SX canonical(int i, int n, SX& fin, SX& J, SX& U0, SX& dU, double mu) {
+template<class T> SX canonical(int i, int n, SX& fin, SX& J, SX& U0, SX& dU, T mu) {
 
     vector<vector<complex < SX>>> f(L, vector<complex < SX >> (dim, complex<SX>(0, 0)));
     vector<SX> norm2(L, 0);

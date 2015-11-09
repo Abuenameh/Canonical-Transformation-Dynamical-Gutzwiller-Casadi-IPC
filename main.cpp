@@ -512,6 +512,84 @@ void worker(worker_input* input, worker_tau* tau_in, worker_output* output, mana
     segment.destroy_ptr<worker_tau>(tau_in);
 }
 
+void build_ode() {
+
+    SX p = SX::sym("p", L+4);
+    SX Wi = p[L];
+    SX Wf = p[L+1];
+    SX mu = p[L+2];
+    SX tau = p[L+3];
+
+    SX f = SX::sym("f", 2 * L * dim);
+    SX dU = SX::sym("dU", L);
+    SX J = SX::sym("J", L);
+    SX U0 = SX::sym("U0");
+    SX t = SX::sym("t");
+
+    SX Wt = if_else(t < tau, Wi + (Wf - Wi) * t / tau, Wf + (Wi - Wf) * (t - tau) / tau);
+
+    U0 = UW(Wt);
+    for (int i = 0; i < L; i++) {
+        J[i] = JWij(Wt * p[i], Wt * p[mod(i + 1)]);
+        dU[i] = UW(Wt * p[i]) - U0;
+    }
+
+    SX E = energy(f, J, U0, dU, mu);
+    SXFunction Ef = SXFunction("E",{f, t, tau},
+    {
+        E
+    });
+    SXFunction E0 = SXFunction("E0",{f}, Ef(vector<SX>{f, 0, 1}));
+
+    SX S = canonical(f, J, U0, dU, mu);
+    SXFunction St("St",{t},
+    {
+        S
+    });
+    SX Sdt = St.gradient()(vector<SX>{t})[0];
+
+
+    SXFunction HSr("HSr",{f},
+    {
+        Sdt
+    });
+    SX HSrdf = HSr.gradient()(vector<SX>{f})[0];
+    SXFunction HSi("HSi",{f},
+    {
+        -E
+    });
+    SX HSidf = HSi.gradient()(vector<SX>{f})[0];
+
+    SX ode = SX::sym("ode", 2 * L * dim);
+    for (int j = 0; j < L * dim; j++) {
+        ode[2 * j] = 0;
+        ode[2 * j + 1] = 0;
+        try {
+            ode[2 * j] += 0.5 * HSrdf[2 * j];
+        }
+        catch (CasadiException& e) {
+        }
+        try {
+            ode[2 * j] -= 0.5 * HSidf[2 * j + 1];
+        }
+        catch (CasadiException& e) {
+        }
+        try {
+            ode[2 * j + 1] += 0.5 * HSidf[2 * j];
+        }
+        catch (CasadiException& e) {
+        }
+        try {
+            ode[2 * j + 1] += 0.5 * HSrdf[2 * j + 1];
+        }
+        catch (CasadiException& e) {
+        }
+    }
+    SXFunction ode_func = SXFunction("ode", daeIn("t", t, "x", f, "p", p), daeOut("ode", ode));
+    
+    ode_func.generate("ode");
+}
+
 /*
  * 
  */
@@ -523,6 +601,9 @@ int main(int argc, char** argv) {
     random::uniform_real_distribution<> uni(-1, 1);
 
     int seed = lexical_cast<int>(argv[1]);
+    
+    build_ode();
+    return 0;
 
     if (seed != -1) {
 
