@@ -254,7 +254,8 @@ worker_input* initialize(double Wi, double Wf, double mu, vector<double>& xi, ma
     SX E = energy(f, J, U0, dU, mu);
 
     SXFunction nlp("nlp", nlpIn("x", f), nlpOut("f", E));
-    NlpSolver solver("solver", "ipopt", nlp, make_dict("hessian_approximation", "limited-memory", "linear_solver", "ma86", "print_level", 0, "print_time", false));
+    NlpSolver solver("solver", "ipopt", nlp, make_dict("hessian_approximation", "limited-memory", "linear_solver", "ma86", "print_level", 0, "print_time", false, "obj_scaling_factor", 1));
+//    NlpSolver solver("solver", "ipopt", nlp, make_dict("hessian_approximation", "limited-memory", "linear_solver", "ma86", "print_level", 0, "print_time", false));
 
     boost::random::mt19937 rng;
     boost::random::uniform_real_distribution<> uni(-1, 1);
@@ -273,6 +274,7 @@ worker_input* initialize(double Wi, double Wf, double mu, vector<double>& xi, ma
     map<string, DMatrix> res = solver(arg);
     vector<double> x0 = res["x"].nonzeros();
 //        vector<double> x0 = xrand;
+    cout << "E0 = " << ::math(res["f"].toScalar()) << endl;
 
     vector<complex<double>> x0i(dim);
     for (int i = 0; i < L; i++) {
@@ -285,6 +287,7 @@ worker_input* initialize(double Wi, double Wf, double mu, vector<double>& xi, ma
             x0[2 * (i * dim + n) + 1] /= nrm;
         }
     }
+    cout << "nlp: " << ::math(nlp(vector<DMatrix>{x0, vector<double>()})[0].toScalar()) << endl;
 
     void_allocator void_alloc(segment.get_segment_manager());
     worker_input* input = segment.construct<worker_input>("input")(void_alloc);
@@ -321,8 +324,8 @@ complex<double> dot(complex_vector& v, complex_vector& w) {
 }
 
 void evolve(SXFunction& E0, Function& ode_func, vector<double>& p, worker_input* input, worker_output* output, managed_shared_memory& segment) {
-    double tauf = 2e-7;
-    double dt = 0.9e-9;
+    double tauf = 2e-6;
+    double dt = 0.5e-9;
     double tau = p[L+3];
     Integrator integrator_rk("integrator", "rk", ode_func, make_dict("t0", 0, "tf", 2 * tau, "number_of_finite_elements", ceil((2 * tauf) / dt)));
     Integrator integrator_cvodes("integrator", "cvodes", ode_func, make_dict("t0", 0, "tf", 2 * tau, "exact_jacobian", false, "max_num_steps", 100000));
@@ -707,6 +710,7 @@ int main(int argc, char** argv) {
         managed_shared_memory segment(create_only, "SharedMemory", size);
 
         worker_input* w_input = initialize(Wi, Wf, mui, xi, segment);
+        return 0;
 
         void_allocator void_alloc(segment.get_segment_manager());
         char_string integrator(intg.begin(), intg.end(), void_alloc);
