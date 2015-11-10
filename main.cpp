@@ -615,9 +615,6 @@ int main(int argc, char** argv) {
 
     int seed = lexical_cast<int>(argv[1]);
     
-    build_ode();
-    return 0;
-
     if (seed != -1) {
 
         double Wi = lexical_cast<double>(argv[2]);
