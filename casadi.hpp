@@ -62,6 +62,9 @@ template<class T> SX energy(int i, int n, SX& fin, SX& J, SX& U0, SX& dU, T mu);
 template<class T> SX canonical(SX& fin, SX& J, SX& U0, SX& dU, T mu);
 template<class T> SX canonical(int i, int n, SX& f, SX& J, SX& U0, SX& dU, T mu);
 
+template<class T> SX energy2(SX& fin, SX& J, SX& U0, SX& dU, T mu);
+template<class T> SX energy2(int i, int n, SX& fin, SX& J, SX& U0, SX& dU, T mu);
+
 //SX energy(SX& fin, SX& J, SX& U0, SX& dU, SX& mu);
 //SX energy(int i, int n, SX& fin, SX& J, SX& U0, SX& dU, SX& mu);
 //SX canonical(SX& fin, SX& J, SX& U0, SX& dU, SX& mu);
