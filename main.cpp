@@ -342,8 +342,6 @@ complex<double> dot(complex_vector& v, complex_vector& w) {
     return res;
 }
 
-double scale = 1e6;
-
 void evolve(SXFunction& E0, SXFunction& Et, Function& ode_func, vector<double>& p, worker_input* input, worker_output* output, managed_shared_memory& segment) {
     double scale = input->scale;
     double tau = p[L+4]*scale;
@@ -544,7 +542,7 @@ void worker(worker_input* input, worker_tau* tau_in, worker_output* output, mana
             }
         }
 
-        p[L+3] = taui;
+        p[L+4] = taui;
         try {
             evolve(E0, Ef, ode_func, p, input, output, segment);
         }
@@ -651,8 +649,8 @@ void build_ode() {
  */
 int main(int argc, char** argv) {
     
-    build_ode();
-    return 0;
+//    build_ode();
+//    return 0;
 
     ptime begin = microsec_clock::local_time();
 
@@ -683,7 +681,7 @@ int main(int argc, char** argv) {
         int resi = lexical_cast<int>(argv[11]);
 
         //        int integrator = lexical_cast<int>(argv[11]);
-        std::string intg = argv[11];
+        std::string intg = argv[12];
 
 #ifdef AMAZON
         //    path resdir("/home/ubuntu/Results/Canonical Transformation Dynamical Gutzwiller");
