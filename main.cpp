@@ -75,6 +75,7 @@ struct worker_input {
     double Wi;
     double Wf;
     double mu;
+    double scale;
     double_vector xi;
     double U0;
     double_vector J0;
@@ -241,21 +242,21 @@ void threadfunc(std::string prog, double tauf, queue<input>& inputs, vector<resu
     segment.destroy_ptr<worker_output>(output);
 }
 
-worker_input* initialize(double Wi, double Wf, double mu, vector<double>& xi, managed_shared_memory& segment) {
+worker_input* initialize(double Wi, double Wf, double mu, double scale, vector<double>& xi, managed_shared_memory& segment) {
 
     SX f = SX::sym("f", 2 * L * dim);
     SX dU = SX::sym("dU", L);
     SX J = SX::sym("J", L);
     SX U0 = SX::sym("U0");
 
-    U0 = UW(Wi);
+    U0 = UW(Wi)/scale;
     for (int i = 0; i < L; i++) {
-        J[i] = JWij(Wi * xi[i], Wi * xi[mod(i + 1)]);
-        dU[i] = UW(Wi * xi[i]) - U0;
+        J[i] = JWij(Wi * xi[i], Wi * xi[mod(i + 1)])/scale;
+        dU[i] = UW(Wi * xi[i])/scale - U0;
     }
 
-    SX E = energy(f, J, U0, dU, mu);
-    SX E2 = energy2(f, J, U0, dU, mu);
+    SX E = energy(f, J, U0, dU, mu/scale);
+    SX E2 = energy2(f, J, U0, dU, mu/scale);
     
     SX g = SX::sym("g", L);
     for (int i = 0; i < L; i++) {
@@ -325,6 +326,7 @@ worker_input* initialize(double Wi, double Wf, double mu, vector<double>& xi, ma
     input->Wi = Wi;
     input->Wf = Wf;
     input->mu = mu;
+    input->scale = scale;
     for (int i = 0; i < L; i++) {
         input->xi.push_back(xi[i]);
     }
@@ -343,10 +345,11 @@ complex<double> dot(complex_vector& v, complex_vector& w) {
 double scale = 1e6;
 
 void evolve(SXFunction& E0, SXFunction& Et, Function& ode_func, vector<double>& p, worker_input* input, worker_output* output, managed_shared_memory& segment) {
-    double tau = p[L+3]*scale;
-    double tauf = tau;//2e-6;
+    double scale = input->scale;
+    double tau = p[L+4]*scale;
+//    double tauf = tau;//2e-6;
     double dt = 0.9e-9*scale;
-    Integrator integrator_rk("integrator", "rk", ode_func, make_dict("t0", 0, "tf", 2 * tau, "number_of_finite_elements", ceil((2 * tauf) / dt)));
+    Integrator integrator_rk("integrator", "rk", ode_func, make_dict("t0", 0, "tf", 2 * tau, "number_of_finite_elements", ceil((2 * tau) / dt)));
     Integrator integrator_cvodes("integrator", "cvodes", ode_func, make_dict("t0", 0, "tf", 2 * tau, "exact_jacobian", false, "max_num_steps", 100000));
     Integrator integrator;
     if (input->integrator == "rk") {
@@ -400,8 +403,8 @@ void evolve(SXFunction& E0, SXFunction& Et, Function& ode_func, vector<double>& 
     complex_vector_vector& f0 = input->f0;
 
     for (int i = 0; i < L; i++) {
-//        output->b0.push_back(b(f0, i, input->J0, input->U0));
-//        output->bf.push_back(b(ff, i, input->J0, input->U0));
+        output->b0.push_back(b(f0, i, input->J0, input->U0));
+        output->bf.push_back(b(ff, i, input->J0, input->U0));
     }
 
     output->Ei = E0(vector<DMatrix>{x0})[0].toScalar();
@@ -427,6 +430,7 @@ void fail(std::string error, worker_output* output, managed_shared_memory& segme
     output->Ef = numeric_limits<double>::quiet_NaN();
     output->Q = numeric_limits<double>::quiet_NaN();
     output->p = numeric_limits<double>::quiet_NaN();
+    output->Es = double_vector(1, numeric_limits<double>::quiet_NaN(), void_alloc);
     complex_vector nan_vector(L, numeric_limits<double>::quiet_NaN(), void_alloc);
     output->b0 = nan_vector;
     output->bf = nan_vector;
@@ -441,15 +445,17 @@ void worker(worker_input* input, worker_tau* tau_in, worker_output* output, mana
     double Wi = input->Wi;
     double Wf = input->Wf;
     double mu = input->mu;
+    double scale = input->scale;
     double_vector xi = input->xi;
     
-    vector<double> p(L+4);
+    vector<double> p(L+5);
     for (int i = 0; i < L; i++) {
         p[i] = xi[i];
     }
     p[L] = Wi;
     p[L+1] = Wf;
     p[L+2] = mu;
+    p[L+3] = scale;
 
     SX f = SX::sym("f", 2 * L * dim);
     SX dU = SX::sym("dU", L);
@@ -460,7 +466,7 @@ void worker(worker_input* input, worker_tau* tau_in, worker_output* output, mana
     SX tau = SX::sym("tau");
 //    SX tau = p[L+3];
 
-    SX Wt = if_else(t < tau*scale, Wi + (Wf - Wi) * t / tau*scale, Wf + (Wi - Wf) * (t - tau*scale) / tau*scale);
+    SX Wt = if_else(t < tau*scale, Wi + (Wf - Wi) * t / (tau*scale), Wf + (Wi - Wf) * (t - tau*scale) / (tau*scale));
 
     U0 = UW(Wt)/scale;
     for (int i = 0; i < L; i++) {
@@ -562,11 +568,12 @@ void worker(worker_input* input, worker_tau* tau_in, worker_output* output, mana
 
 void build_ode() {
 
-    SX p = SX::sym("p", L+4);
+    SX p = SX::sym("p", L+5);
     SX Wi = p[L];
     SX Wf = p[L+1];
     SX mu = p[L+2];
-    SX tau = p[L+3];
+    SX scale = p[L+3];
+    SX tau = p[L+4];
 
     SX f = SX::sym("f", 2 * L * dim);
     SX dU = SX::sym("dU", L);
@@ -574,22 +581,23 @@ void build_ode() {
     SX U0 = SX::sym("U0");
     SX t = SX::sym("t");
 
-    SX Wt = if_else(t < tau, Wi + (Wf - Wi) * t / tau, Wf + (Wi - Wf) * (t - tau) / tau);
+    SX Wt = if_else(t < tau*scale, Wi + (Wf - Wi) * t / (tau*scale), Wf + (Wi - Wf) * (t - tau*scale) / (tau*scale));
 
-    U0 = UW(Wt);
+    U0 = UW(Wt)/scale;
     for (int i = 0; i < L; i++) {
-        J[i] = JWij(Wt * p[i], Wt * p[mod(i + 1)]);
-        dU[i] = UW(Wt * p[i]) - U0;
+        J[i] = JWij(Wt * p[i], Wt * p[mod(i + 1)])/scale;
+        dU[i] = UW(Wt * p[i])/scale - U0;
     }
 
-    SX E = energy(f, J, U0, dU, mu);
+    SX scaledmu = mu/scale;
+    SX E = energy(f, J, U0, dU, scaledmu);
     SXFunction Ef = SXFunction("E",{f, t, tau},
     {
         E
     });
     SXFunction E0 = SXFunction("E0",{f}, Ef(vector<SX>{f, 0, 1}));
 
-    SX S = canonical(f, J, U0, dU, mu);
+    SX S = canonical(f, J, U0, dU, scaledmu);
     SXFunction St("St",{t},
     {
         S
@@ -643,8 +651,8 @@ void build_ode() {
  */
 int main(int argc, char** argv) {
     
-//    build_ode();
-//    return 0;
+    build_ode();
+    return 0;
 
     ptime begin = microsec_clock::local_time();
 
@@ -659,18 +667,20 @@ int main(int argc, char** argv) {
         double Wf = lexical_cast<double>(argv[3]);
 
         double mu = lexical_cast<double>(argv[4]);
+        
+        double scale = lexical_cast<double>(argv[5]);
 
         double Ui = UWi(Wi);
 
-        double D = lexical_cast<double>(argv[5]);
+        double D = lexical_cast<double>(argv[6]);
 
-        double taui = lexical_cast<double>(argv[6]);
-        double tauf = lexical_cast<double>(argv[7]);
-        int ntaus = lexical_cast<int>(argv[8]);
+        double taui = lexical_cast<double>(argv[7]);
+        double tauf = lexical_cast<double>(argv[8]);
+        int ntaus = lexical_cast<int>(argv[9]);
 
-        int numthreads = lexical_cast<int>(argv[9]);
+        int numthreads = lexical_cast<int>(argv[10]);
 
-        int resi = lexical_cast<int>(argv[10]);
+        int resi = lexical_cast<int>(argv[11]);
 
         //        int integrator = lexical_cast<int>(argv[11]);
         std::string intg = argv[11];
@@ -718,6 +728,7 @@ int main(int argc, char** argv) {
         printMath(os, "int", resi, intg);
         printMath(os, "seed", resi, seed);
         printMath(os, "Delta", resi, D);
+        printMath(os, "scale", resi, scale);
         printMath(os, "mures", resi, mui);
         printMath(os, "Ures", resi, Ui);
         printMath(os, "xires", resi, xi);
@@ -744,7 +755,7 @@ int main(int argc, char** argv) {
 
         managed_shared_memory segment(create_only, "SharedMemory", size);
 
-        worker_input* w_input = initialize(Wi, Wf, mui, xi, segment);
+        worker_input* w_input = initialize(Wi, Wf, mui, scale, xi, segment);
 //        return 0;
 
         void_allocator void_alloc(segment.get_segment_manager());
