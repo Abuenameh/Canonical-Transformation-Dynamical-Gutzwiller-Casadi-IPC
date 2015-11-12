@@ -104,6 +104,7 @@ struct worker_output {
     double Ef;
     double Q;
     double p;
+    double_vector Es;
     complex_vector b0;
     complex_vector bf;
     complex_vector_vector f0;
@@ -117,7 +118,7 @@ struct worker_output {
 
     bool full;
 
-    worker_output(const void_allocator& void_alloc) : b0(void_alloc), bf(void_alloc), f0(void_alloc), ff(void_alloc), runtime(void_alloc), full(false) {
+    worker_output(const void_allocator& void_alloc) : Es(void_alloc), b0(void_alloc), bf(void_alloc), f0(void_alloc), ff(void_alloc), runtime(void_alloc), full(false) {
     }
 };
 
@@ -128,6 +129,7 @@ struct results {
     double Q;
     double p;
     double U0;
+    double_vector Es;
     double_vector J0;
     complex_vector b0;
     complex_vector bf;
@@ -135,7 +137,7 @@ struct results {
     complex_vector_vector ff;
     char_string runtime;
 
-    results(const void_allocator& void_alloc) : J0(void_alloc), b0(void_alloc), bf(void_alloc), f0(void_alloc), ff(void_alloc), runtime(void_alloc) {
+    results(const void_allocator& void_alloc) : Es(void_alloc), J0(void_alloc), b0(void_alloc), bf(void_alloc), f0(void_alloc), ff(void_alloc), runtime(void_alloc) {
     }
 };
 
@@ -215,6 +217,7 @@ void threadfunc(std::string prog, double tauf, queue<input>& inputs, vector<resu
             pointRes.Ef = output->Ef;
             pointRes.Q = output->Q;
             pointRes.p = output->p;
+            pointRes.Es = output->Es;
             pointRes.b0 = output->b0;
             pointRes.bf = output->bf;
             pointRes.f0 = output->f0;
@@ -337,10 +340,12 @@ complex<double> dot(complex_vector& v, complex_vector& w) {
     return res;
 }
 
-void evolve(SXFunction& E0, Function& ode_func, vector<double>& p, worker_input* input, worker_output* output, managed_shared_memory& segment) {
-    double tauf = 2e-6;
-    double dt = 0.9e-9;
-    double tau = p[L+3];
+double scale = 1e6;
+
+void evolve(SXFunction& E0, SXFunction& Et, Function& ode_func, vector<double>& p, worker_input* input, worker_output* output, managed_shared_memory& segment) {
+    double tau = p[L+3]*scale;
+    double tauf = tau;//2e-6;
+    double dt = 0.9e-9*scale;
     Integrator integrator_rk("integrator", "rk", ode_func, make_dict("t0", 0, "tf", 2 * tau, "number_of_finite_elements", ceil((2 * tauf) / dt)));
     Integrator integrator_cvodes("integrator", "cvodes", ode_func, make_dict("t0", 0, "tf", 2 * tau, "exact_jacobian", false, "max_num_steps", 100000));
     Integrator integrator;
@@ -358,13 +363,25 @@ void evolve(SXFunction& E0, Function& ode_func, vector<double>& p, worker_input*
         x0.push_back(input->x0[i]);
     }
 
+    void_allocator void_alloc(segment.get_segment_manager());
+
 //    map<string, DMatrix> res = integrator(make_map("x0", DMatrix(x0), "p", {
 //        tau
 //    }));
-    map<string, DMatrix> res = integrator(make_map("x0", DMatrix(x0), "p", p));
-    vector<double> xf = res["xf"].nonzeros();
-
-    void_allocator void_alloc(segment.get_segment_manager());
+//    map<string, DMatrix> res = integrator(make_map("x0", DMatrix(x0), "p", p));
+    integrator.setInput(DMatrix(x0), "x0");
+    integrator.setInput(DMatrix(p), "p");
+    integrator.reset();
+    vector<double> xf;
+//    double_vector Es(void_alloc);
+    int nt = 50;
+    for (int i = 0; i < nt; i++) {
+        integrator.integrate((i+1.)/nt * 2 * tau);
+        xf = integrator.getOutput("xf").nonzeros();
+//        cout << (i+1.)/nt * 2 * tau << endl;
+        output->Es.push_back(Et(vector<DMatrix>{xf, (i+1.)/nt * 2 * tau, tau/scale})[0].toScalar());
+    }
+//    vector<double> xf = res["xf"].nonzeros();
 
     complex_vector_vector ff(void_alloc);
     for (int i = 0; i < L; i++) {
@@ -383,8 +400,8 @@ void evolve(SXFunction& E0, Function& ode_func, vector<double>& p, worker_input*
     complex_vector_vector& f0 = input->f0;
 
     for (int i = 0; i < L; i++) {
-        output->b0.push_back(b(f0, i, input->J0, input->U0));
-        output->bf.push_back(b(ff, i, input->J0, input->U0));
+//        output->b0.push_back(b(f0, i, input->J0, input->U0));
+//        output->bf.push_back(b(ff, i, input->J0, input->U0));
     }
 
     output->Ei = E0(vector<DMatrix>{x0})[0].toScalar();
@@ -441,22 +458,23 @@ void worker(worker_input* input, worker_tau* tau_in, worker_output* output, mana
     SX t = SX::sym("t");
 
     SX tau = SX::sym("tau");
+//    SX tau = p[L+3];
 
-    SX Wt = if_else(t < tau, Wi + (Wf - Wi) * t / tau, Wf + (Wi - Wf) * (t - tau) / tau);
+    SX Wt = if_else(t < tau*scale, Wi + (Wf - Wi) * t / tau*scale, Wf + (Wi - Wf) * (t - tau*scale) / tau*scale);
 
-    U0 = UW(Wt);
+    U0 = UW(Wt)/scale;
     for (int i = 0; i < L; i++) {
-        J[i] = JWij(Wt * xi[i], Wt * xi[mod(i + 1)]);
-        dU[i] = UW(Wt * xi[i]) - U0;
+        J[i] = JWij(Wt * xi[i], Wt * xi[mod(i + 1)])/scale;
+        dU[i] = UW(Wt * xi[i])/scale - U0;
     }
 
-    SX E = energy(f, J, U0, dU, mu);
+    SX E = energy(f, J, U0, dU, mu/scale);
     SXFunction Ef = SXFunction("E",{f, t, tau},
     {
         E
     });
     SXFunction E0 = SXFunction("E0",{f}, Ef(vector<SX>{f, 0, 1}));
-//
+
 //    SX S = canonical(f, J, U0, dU, mu);
 //    SXFunction St("St",{t},
 //    {
@@ -501,7 +519,7 @@ void worker(worker_input* input, worker_tau* tau_in, worker_output* output, mana
 //        catch (CasadiException& e) {
 //        }
 //    }
-//    SXFunction ode_func = SXFunction("ode", daeIn("t", t, "x", f, "p", tau), daeOut("ode", ode));
+//    SXFunction ode_func = SXFunction("ode", daeIn("t", t, "x", f, "p", /*tau*/p), daeOut("ode", ode));
 
     ExternalFunction ode_func("ode");
     
@@ -522,7 +540,7 @@ void worker(worker_input* input, worker_tau* tau_in, worker_output* output, mana
 
         p[L+3] = taui;
         try {
-            evolve(E0, ode_func, p, input, output, segment);
+            evolve(E0, Ef, ode_func, p, input, output, segment);
         }
         catch (std::exception& e) {
             fail(e.what(), output, segment);
@@ -624,6 +642,9 @@ void build_ode() {
  * 
  */
 int main(int argc, char** argv) {
+    
+//    build_ode();
+//    return 0;
 
     ptime begin = microsec_clock::local_time();
 
@@ -760,6 +781,7 @@ int main(int argc, char** argv) {
         vector<double> Efres;
         vector<double> Qres;
         vector<double> pres;
+        vector<vector<double>> Esres;
         vector<vector<complex<double>>> b0res;
         vector<vector<complex<double>>> bfres;
 //        vector<complex_vector_vector> f0res;
@@ -772,6 +794,8 @@ int main(int argc, char** argv) {
             Efres.push_back(ires.Ef);
             Qres.push_back(ires.Q);
             pres.push_back(ires.p);
+            vector<double> Es(ires.Es.begin(), ires.Es.end());
+            Esres.push_back(Es);
             vector<complex<double>> b0(ires.b0.begin(), ires.b0.end());
             vector<complex<double>> bf(ires.bf.begin(), ires.bf.end());
             b0res.push_back(b0);
@@ -789,6 +813,7 @@ int main(int argc, char** argv) {
         printMath(os, "pres", resi, pres);
         printMath(os, "U0res", resi, w_input->U0);
         printMath(os, "J0res", resi, w_input->J0);
+        printMath(os, "Esres", resi, Esres);
         printMath(os, "b0res", resi, b0res);
         printMath(os, "bfres", resi, bfres);
         //    printMath(os, "f0res", resi, f0res);
