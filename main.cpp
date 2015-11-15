@@ -130,16 +130,16 @@ struct results {
     double Q;
     double p;
     double U0;
-    double_vector Es;
-    double_vector J0;
-    complex_vector b0;
-    complex_vector bf;
-    complex_vector_vector f0;
-    complex_vector_vector ff;
-    char_string runtime;
+    vector<double> Es;
+    vector<double> J0;
+    vector<complex<double>> b0;
+    vector<complex<double>> bf;
+    vector<vector<complex<double>>> f0;
+    vector<vector<complex<double>>> ff;
+    string runtime;
 
-    results(const void_allocator& void_alloc) : Es(void_alloc), J0(void_alloc), b0(void_alloc), bf(void_alloc), f0(void_alloc), ff(void_alloc), runtime(void_alloc) {
-    }
+//    results(const void_allocator& void_alloc) : Es(void_alloc), J0(void_alloc), b0(void_alloc), bf(void_alloc), f0(void_alloc), ff(void_alloc), runtime(void_alloc) {
+//    }
 };
 
 double UWi(double W) {
@@ -205,7 +205,8 @@ void threadfunc(std::string prog, double tauf, queue<input>& inputs, vector<resu
             tau->full = true;
         }
 
-        results pointRes(void_alloc);
+//        results pointRes(void_alloc);
+        results pointRes;
         pointRes.tau = in.tau;
 
         {
@@ -218,12 +219,16 @@ void threadfunc(std::string prog, double tauf, queue<input>& inputs, vector<resu
             pointRes.Ef = output->Ef;
             pointRes.Q = output->Q;
             pointRes.p = output->p;
-            pointRes.Es = output->Es;
-            pointRes.b0 = output->b0;
-            pointRes.bf = output->bf;
-            pointRes.f0 = output->f0;
-            pointRes.ff = output->ff;
-            pointRes.runtime = output->runtime;
+            pointRes.Es = vector<double>(output->Es.begin(), output->Es.end());
+            pointRes.b0 = vector<complex<double>>(output->b0.begin(), output->b0.end());
+            pointRes.bf = vector<complex<double>>(output->bf.begin(), output->bf.end());
+            pointRes.runtime = string(output->runtime.begin(), output->runtime.end());
+//            pointRes.Es = output->Es;
+//            pointRes.b0 = output->b0;
+//            pointRes.bf = output->bf;
+//            pointRes.f0 = output->f0;
+//            pointRes.ff = output->ff;
+//            pointRes.runtime = output->runtime;
             output->full = false;
             output->cond_full.notify_one();
         }
@@ -376,6 +381,7 @@ void evolve(SXFunction& E0, SXFunction& Et, Function& ode_func, vector<double>& 
     vector<double> xf;
 //    double_vector Es(void_alloc);
     int nt = 50;
+    output->Es.clear();
     for (int i = 0; i < nt; i++) {
         integrator.integrate((i+1.)/nt * 2 * tau);
         xf = integrator.getOutput("xf").nonzeros();
@@ -400,6 +406,8 @@ void evolve(SXFunction& E0, SXFunction& Et, Function& ode_func, vector<double>& 
 
     complex_vector_vector& f0 = input->f0;
 
+    output->b0.clear();
+    output->bf.clear();
     for (int i = 0; i < L; i++) {
         output->b0.push_back(b(f0, i, input->J0, input->U0));
         output->bf.push_back(b(ff, i, input->J0, input->U0));
@@ -803,16 +811,20 @@ int main(int argc, char** argv) {
             Efres.push_back(ires.Ef);
             Qres.push_back(ires.Q);
             pres.push_back(ires.p);
-            vector<double> Es(ires.Es.begin(), ires.Es.end());
-            Esres.push_back(Es);
-            vector<complex<double>> b0(ires.b0.begin(), ires.b0.end());
-            vector<complex<double>> bf(ires.bf.begin(), ires.bf.end());
-            b0res.push_back(b0);
-            bfres.push_back(bf);
+            Esres.push_back(ires.Es);
+            b0res.push_back(ires.b0);
+            bfres.push_back(ires.bf);
+            runtimeres.push_back(replace_all_copy(ires.runtime, "\"", "\\\""));
+//            vector<double> Es(ires.Es.begin(), ires.Es.end());
+//            Esres.push_back(Es);
+//            vector<complex<double>> b0(ires.b0.begin(), ires.b0.end());
+//            vector<complex<double>> bf(ires.bf.begin(), ires.bf.end());
+//            b0res.push_back(b0);
+//            bfres.push_back(bf);
 //            f0res.push_back(ires.f0);
 //            ffres.push_back(ires.ff);
-            std::string runtime(ires.runtime.begin(), ires.runtime.end());
-            runtimeres.push_back(replace_all_copy(runtime, "\"", "\\\""));
+//            std::string runtime(ires.runtime.begin(), ires.runtime.end());
+//            runtimeres.push_back(replace_all_copy(runtime, "\"", "\\\""));
         }
 
         printMath(os, "taures", resi, taures);
