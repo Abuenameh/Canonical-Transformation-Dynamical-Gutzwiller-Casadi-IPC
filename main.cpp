@@ -252,7 +252,7 @@ worker_input* initialize(double Wi, double Wf, double mu, double scale, vector<d
     U0 = UW(Wi)/scale;
     for (int i = 0; i < L; i++) {
         J[i] = JWij(Wi * xi[i], Wi * xi[mod(i + 1)])/scale;
-        dU[i] = UW(Wi * xi[i])/scale - U0;
+        dU[i] = 0;//UW(Wi * xi[i])/scale - U0;
     }
 
     SX E = energy(f, J, U0, dU, mu/scale);
@@ -469,7 +469,7 @@ void worker(worker_input* input, worker_tau* tau_in, worker_output* output, mana
     U0 = UW(Wt)/scale;
     for (int i = 0; i < L; i++) {
         J[i] = JWij(Wt * xi[i], Wt * xi[mod(i + 1)])/scale;
-        dU[i] = UW(Wt * xi[i])/scale - U0;
+        dU[i] = 0;//UW(Wt * xi[i])/scale - U0;
     }
 
     SX E = energy(f, J, U0, dU, mu/scale);
@@ -584,7 +584,7 @@ void build_ode() {
     U0 = UW(Wt)/scale;
     for (int i = 0; i < L; i++) {
         J[i] = JWij(Wt * p[i], Wt * p[mod(i + 1)])/scale;
-        dU[i] = UW(Wt * p[i])/scale - U0;
+        dU[i] = 0;//UW(Wt * p[i])/scale - U0;
     }
 
     SX scaledmu = mu/scale;
@@ -649,8 +649,8 @@ void build_ode() {
  */
 int main(int argc, char** argv) {
     
-//    build_ode();
-//    return 0;
+    build_ode();
+    return 0;
 
     ptime begin = microsec_clock::local_time();
 
