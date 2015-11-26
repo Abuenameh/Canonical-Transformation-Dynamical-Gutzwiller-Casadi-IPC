@@ -970,6 +970,7 @@ template<class T> SX energy2(SX& fin, SX& J, SX& U0, SX& dU, T mu) {
 template<class T> SX energy2(int i, int n, SX& fin, SX& J, SX& U0, SX& dU, T mu) {
 
     complex<SX> expth = complex<SX>(1, 0);
+//    complex<SX> expth = complex<SX>(sin(0.1), cos(0.1));
     complex<SX> expmth = ~expth;
     complex<SX> exp2th = expth*expth;
     complex<SX> expm2th = ~exp2th;
@@ -1236,12 +1237,12 @@ template<class T> SX energy2(int i, int n, SX& fin, SX& J, SX& U0, SX& dU, T mu)
         }
     }
 
-//    Ei /= norm2[i];
-//    Ej1 /= norm2[i] * norm2[j1];
-//    Ej2 /= norm2[i] * norm2[j2];
-//    Ej1j2 /= norm2[i] * norm2[j1] * norm2[j2];
-//    Ej1k1 /= norm2[i] * norm2[j1] * norm2[k1];
-//    Ej2k2 /= norm2[i] * norm2[j2] * norm2[k2];
+    Ei /= norm2[i];
+    Ej1 /= norm2[i] * norm2[j1];
+    Ej2 /= norm2[i] * norm2[j2];
+    Ej1j2 /= norm2[i] * norm2[j1] * norm2[j2];
+    Ej1k1 /= norm2[i] * norm2[j1] * norm2[k1];
+    Ej2k2 /= norm2[i] * norm2[j2] * norm2[k2];
 
     E += Ei;
     E += Ej1;
