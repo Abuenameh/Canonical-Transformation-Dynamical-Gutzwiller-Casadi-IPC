@@ -52,6 +52,7 @@ using namespace nlopt;
 #include "gutzwiller.hpp"
 #include "mathematica.hpp"
 #include "casadi.hpp"
+#include "casadimath.hpp"
 #include "orderparameter.hpp"
 
 #include <casadi/interfaces/sundials/cvodes_interface.hpp>
@@ -82,6 +83,7 @@ struct worker_input {
     double_vector x0;
     complex_vector_vector f0;
     char_string integrator;
+    double dt;
 
     worker_input(const void_allocator& void_alloc) : xi(void_alloc), J0(void_alloc), x0(void_alloc), f0(void_alloc), integrator(void_alloc) {
     }
@@ -261,7 +263,7 @@ worker_input* initialize(double Wi, double Wf, double mu, double scale, vector<d
     }
 
     SX E = energy(f, J, U0, dU, mu/scale);
-    SX E2 = energy2(f, J, U0, dU, mu/scale);
+    SX E2 = energyc(f, J, U0, dU, mu/scale, false);
     
     SX g = SX::sym("g", L);
     for (int i = 0; i < L; i++) {
@@ -351,7 +353,8 @@ void evolve(SXFunction& E0, SXFunction& Et, Function& ode_func, vector<double>& 
     double scale = input->scale;
     double tau = p[L+4]*scale;
 //    double tauf = tau;//2e-6;
-    double dt = 0.9e-9*scale;
+//    double dt = 0.9e-9*scale;
+    double dt = input->dt*scale;
     Integrator integrator_rk("integrator", "rk", ode_func, make_dict("t0", 0, "tf", 2 * tau, "number_of_finite_elements", ceil((2 * tau) / dt)));
     Integrator integrator_cvodes("integrator", "cvodes", ode_func, make_dict("t0", 0, "tf", 2 * tau, "exact_jacobian", false, "max_num_steps", 100000));
     Integrator integrator;
@@ -469,8 +472,10 @@ void worker(worker_input* input, worker_tau* tau_in, worker_output* output, mana
     SX U0 = SX::sym("U0");
     SX t = SX::sym("t");
 
-    SX tau = SX::sym("tau");
+//    SX tau = SX::sym("tau");
 //    SX tau = p[L+3];
+    SX psx = SX::sym("p", L+5);
+    SX tau = psx[L+4];
 
     SX Wt = if_else(t < tau*scale, Wi + (Wf - Wi) * t / (tau*scale), Wf + (Wi - Wf) * (t - tau*scale) / (tau*scale));
 
@@ -480,14 +485,15 @@ void worker(worker_input* input, worker_tau* tau_in, worker_output* output, mana
         dU[i] = UW(Wt * xi[i])/scale - U0;
     }
 
-    SX E = energy(f, J, U0, dU, mu/scale);
+    SX E = energyc(f, J, U0, dU, mu/scale, true);
     SXFunction Ef = SXFunction("E",{f, t, tau},
     {
         E
     });
     SXFunction E0 = SXFunction("E0",{f}, Ef(vector<SX>{f, 0, 1}));
 
-//    SX S = canonical(f, J, U0, dU, mu);
+/////////////////////////////
+//    SX S = canonical(f, J, U0, dU, mu/scale);
 //    SXFunction St("St",{t},
 //    {
 //        S
@@ -531,8 +537,8 @@ void worker(worker_input* input, worker_tau* tau_in, worker_output* output, mana
 //        catch (CasadiException& e) {
 //        }
 //    }
-//    SXFunction ode_func = SXFunction("ode", daeIn("t", t, "x", f, "p", /*tau*/p), daeOut("ode", ode));
-
+//    SXFunction ode_func = SXFunction("ode", daeIn("t", t, "x", f, "p", psx), daeOut("ode", ode));
+    
     ExternalFunction ode_func("ode");
     
     double taui;
@@ -596,7 +602,7 @@ void build_ode() {
     }
 
     SX scaledmu = mu/scale;
-    SX E = energy(f, J, U0, dU, scaledmu);
+    SX E = energyc(f, J, U0, dU, scaledmu, true);
     SXFunction Ef = SXFunction("E",{f, t, tau},
     {
         E
@@ -690,6 +696,7 @@ int main(int argc, char** argv) {
 
         //        int integrator = lexical_cast<int>(argv[11]);
         std::string intg = argv[12];
+        double dt = lexical_cast<double>(argv[13]);
 
 #ifdef AMAZON
         //    path resdir("/home/ubuntu/Results/Canonical Transformation Dynamical Gutzwiller");
@@ -735,6 +742,7 @@ int main(int argc, char** argv) {
         printMath(os, "seed", resi, seed);
         printMath(os, "Delta", resi, D);
         printMath(os, "scale", resi, scale);
+        printMath(os, "dt", resi, dt);
         printMath(os, "mures", resi, mui);
         printMath(os, "Ures", resi, Ui);
         printMath(os, "xires", resi, xi);
@@ -767,6 +775,7 @@ int main(int argc, char** argv) {
         void_allocator void_alloc(segment.get_segment_manager());
         char_string integrator(intg.begin(), intg.end(), void_alloc);
         w_input->integrator = integrator;
+        w_input->dt = dt;
 
         queue<input> inputs;
         if (ntaus == 1) {
