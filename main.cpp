@@ -380,6 +380,7 @@ void evolve(SXFunction& E0, SXFunction& Et, Function& ode_func, vector<double>& 
 //    map<string, DMatrix> res = integrator(make_map("x0", DMatrix(x0), "p", p));
     integrator.setInput(DMatrix(x0), "x0");
     integrator.setInput(DMatrix(p), "p");
+//    integrator.evaluate();
     integrator.reset();
     vector<double> xf;
 //    double_vector Es(void_alloc);
