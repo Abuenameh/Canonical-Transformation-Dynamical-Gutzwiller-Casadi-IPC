@@ -24,6 +24,8 @@ complex<SX> operator*(complex<SX> csx, SX sx) {
     return csx * complex<SX>(sx,0);
 }
 
+#include "casadimath.incl"
+
 SX energyc(SX& fin, SX& J, SX& U0, SX& dU, double mu, bool normalize) {
     vector<vector<complex < SX>>> f(L, vector<complex < SX >> (dim, complex<SX>(0, 0)));
     vector<SX> norm2(L, 0);
