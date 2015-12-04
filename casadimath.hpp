@@ -19,6 +19,7 @@ double energyri(vector<double> fin, vector<double> J, double U0, vector<double> 
 SX energyc(SX& fin, SX& J, SX& U0, SX& dU, double mu, bool normalize);
 SX energyc(SX& fin, SX& J, SX& U0, SX& dU, SX& mu, bool normalize);
 
+#include "casadimath.hincl"
 
 #endif	/* CASADIRI_HPP */
 
