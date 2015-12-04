@@ -152,6 +152,51 @@ struct input {
     double tau;
 };
 
+class SumFunction : public Callback2 {
+public:
+    SumFunction(vector<Function>& fs_) : fs(fs_) {
+        nf = fs.size();
+        nin = fs[0].nIn();
+        nout = fs[0].nOut();
+        for (int i = 0; i < nin; i++) {
+            inSparsity.push_back(fs[0].inputSparsity(i));
+        }
+        for (int i = 0; i < nout; i++) {
+            outSparsity.push_back(fs[0].outputSparsity(i));
+        }
+    }
+    
+    int nIn() { return nin; }
+    
+    int nOut() { return nout; }
+    
+    Sparsity inputSparsity(int i) { return inSparsity[i]; }
+    
+    Sparsity outputSparsity(int i) { return outSparsity[i]; }
+    
+    std::vector<DMatrix> operator()(const std::vector<DMatrix>& arg) {
+        vector<DMatrix> res(nout);
+        for (int i = 0; i < nout; i++) {
+            res[i] = DMatrix(outSparsity[i], 0);
+        }
+        for (int i = 0; i < nf; i++) {
+            vector<DMatrix> resi = fs[i](arg);
+            for (int j = 0; j < nout; j++) {
+                res[j] += resi[j];
+            }
+        }
+        return res;
+    }
+    
+private:
+    vector<Function>& fs;
+    int nf;
+    int nin;
+    int nout;
+    vector<Sparsity> inSparsity;
+    vector<Sparsity> outSparsity;
+};
+
 boost::mutex progress_mutex;
 boost::mutex inputs_mutex;
 boost::mutex problem_mutex;
@@ -540,7 +585,22 @@ void worker(worker_input* input, worker_tau* tau_in, worker_output* output, mana
 //    }
 //    SXFunction ode_func = SXFunction("ode", daeIn("t", t, "x", f, "p", psx), daeOut("ode", ode));
     
-    ExternalFunction ode_func("ode");
+//    ExternalFunction ode_func("ode");
+    
+    chdir("odes");
+    vector<Function> odes;
+    odes.push_back(ExternalFunction("odes"));
+    for (int ei = 0; ei < 7; ei++) {
+        for (int i = 0; i < L; i++) {
+            for (int n = 0; n <= nmax; n++) {
+                string funcname = "ode_" + to_string(ei) + "_" + to_string(i) + "_" + to_string(n);
+                odes.push_back(ExternalFunction(funcname));
+            }
+        }
+    }
+    SumFunction sf(odes);
+    Function ode_func = sf.create();
+    chdir("..");
     
     double taui;
     for (;;) {
@@ -659,12 +719,117 @@ void build_ode() {
     ode_func.generate("ode");
 }
 
+typedef SX (*energyfunc) (int i, int n, SX& fin, SX& J, SX& U0, SX& dU, SX& mu, bool normalize);
+energyfunc energyfuncs[] = {energy1, energy2, energy3, energy4, energy5, energy6, energy7};
+
+void build_odes() {
+
+    SX p = SX::sym("p", L+5);
+    SX Wi = p[L];
+    SX Wf = p[L+1];
+    SX mu = p[L+2];
+    SX scale = p[L+3];
+    SX tau = p[L+4];
+
+    SX f = SX::sym("f", 2 * L * dim);
+    SX dU = SX::sym("dU", L);
+    SX J = SX::sym("J", L);
+    SX U0 = SX::sym("U0");
+    SX t = SX::sym("t");
+
+    SX Wt = if_else(t < tau*scale, Wi + (Wf - Wi) * t / (tau*scale), Wf + (Wi - Wf) * (t - tau*scale) / (tau*scale));
+
+    U0 = UW(Wt)/scale;
+    for (int i = 0; i < L; i++) {
+        J[i] = JWij(Wt * p[i], Wt * p[mod(i + 1)])/scale;
+        dU[i] = UW(Wt * p[i])/scale - U0;
+    }
+    
+    SX scaledmu = mu/scale;
+
+    chdir("odes");
+    for (int ei = 0; ei < 7; ei++) {
+        energyfunc energy = energyfuncs[ei];
+        for (int i = 0; i < L; i++) {
+            for (int n = 0; n <= nmax; n++) {
+                SX E = energy(i, n, f, J, U0, dU, scaledmu, true);
+                SXFunction Ef = SXFunction("E",{f, t, tau},
+                {
+                    E
+                });
+//                SXFunction E0 = SXFunction("E0",{f}, Ef(vector<SX>{f, 0, 1}));
+
+                SXFunction HSi("HSi",{f},
+                {
+                    -E
+                });
+                SX HSidf = HSi.gradient()(vector<SX>{f})[0];
+
+                SX ode = SX::sym("ode", 2 * L * dim);
+                for (int j = 0; j < L * dim; j++) {
+                    ode[2 * j] = 0;
+                    ode[2 * j + 1] = 0;
+                    try {
+                        ode[2 * j] -= 0.5 * HSidf[2 * j + 1];
+                    }
+                    catch (CasadiException& e) {
+                    }
+                    try {
+                        ode[2 * j + 1] += 0.5 * HSidf[2 * j];
+                    }
+                    catch (CasadiException& e) {
+                    }
+                }
+                SXFunction ode_func = SXFunction("ode", daeIn("t", t, "x", f, "p", p), daeOut("ode", ode));
+                
+                string funcname = "ode_" + to_string(ei) + "_" + to_string(i) + "_" + to_string(n);
+//                ode_func.generate(funcname);
+            }
+        }
+    }
+    
+    SX S = canonical(f, J, U0, dU, scaledmu);
+    SXFunction St("St",{t},
+    {
+        S
+    });
+    SX Sdt = St.gradient()(vector<SX>{t})[0];
+
+
+    SXFunction HSr("HSr",{f},
+    {
+        Sdt
+    });
+    SX HSrdf = HSr.gradient()(vector<SX>{f})[0];
+
+    SX ode = SX::sym("ode", 2 * L * dim);
+    for (int j = 0; j < L * dim; j++) {
+        ode[2 * j] = 0;
+        ode[2 * j + 1] = 0;
+        try {
+            ode[2 * j] += 0.5 * HSrdf[2 * j];
+        }
+        catch (CasadiException& e) {
+        }
+        try {
+            ode[2 * j + 1] += 0.5 * HSrdf[2 * j + 1];
+        }
+        catch (CasadiException& e) {
+        }
+    }
+    SXFunction ode_func = SXFunction("ode", daeIn("t", t, "x", f, "p", p), daeOut("ode", ode));
+    
+    ode_func.generate("odes");
+
+    chdir("..");
+}
+
 /*
  * 
  */
 int main(int argc, char** argv) {
     
-    build_ode();
+    build_odes();
     return 0;
 
     ptime begin = microsec_clock::local_time();
