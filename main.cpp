@@ -783,7 +783,7 @@ void build_odes() {
                 SXFunction ode_func = SXFunction("ode", daeIn("t", t, "x", f, "p", p), daeOut("ode", ode));
                 
                 string funcname = "ode_" + to_string(ei) + "_" + to_string(i) + "_" + to_string(n);
-//                ode_func.generate(funcname);
+                ode_func.generate(funcname);
             }
         }
     }
@@ -829,8 +829,8 @@ void build_odes() {
  */
 int main(int argc, char** argv) {
     
-    build_odes();
-    return 0;
+//    build_odes();
+//    return 0;
 
     ptime begin = microsec_clock::local_time();
 
