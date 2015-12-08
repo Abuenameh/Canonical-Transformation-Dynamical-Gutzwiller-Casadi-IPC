@@ -1012,6 +1012,7 @@ int main(int argc, char** argv) {
         printMath(os, "Esres", resi, Esres);
         printMath(os, "b0res", resi, b0res);
         printMath(os, "bfres", resi, bfres);
+            printMath(os, "f0res", resi, w_input->f0);
         //    printMath(os, "f0res", resi, f0res);
         //    printMath(os, "ffres", resi, ffres);
         printMath(os, "runtime", resi, runtimeres);
