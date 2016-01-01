@@ -340,9 +340,9 @@ worker_input* initialize(double Wi, double Wf, double mu, double scale, vector<d
     arg["lbg"] = 1;
     arg["ubg"] = 1;
 
-    map<string, DMatrix> res = solver2(arg);
-    vector<double> x0 = res["x"].nonzeros();
-//        vector<double> x0 = xrand;
+//    map<string, DMatrix> res = solver2(arg);
+//    vector<double> x0 = res["x"].nonzeros();
+        vector<double> x0 = xrand;
 //    cout << "x0 = " << ::math(x0) << endl;
 //    cout << "E0 = " << ::math(res["f"].toScalar()) << endl;
 
@@ -585,22 +585,22 @@ void worker(worker_input* input, worker_tau* tau_in, worker_output* output, mana
 //    }
 //    SXFunction ode_func = SXFunction("ode", daeIn("t", t, "x", f, "p", psx), daeOut("ode", ode));
     
-//    ExternalFunction ode_func("ode");
+    ExternalFunction ode_func("ode");
     
-    chdir("odes");
-    vector<Function> odes;
-    odes.push_back(ExternalFunction("odes"));
-    for (int ei = 0; ei < 7; ei++) {
-        for (int i = 0; i < L; i++) {
-            for (int n = 0; n <= nmax; n++) {
-                string funcname = "ode_" + to_string(ei) + "_" + to_string(i) + "_" + to_string(n);
-                odes.push_back(ExternalFunction(funcname));
-            }
-        }
-    }
-    SumFunction sf(odes);
-    Function ode_func = sf.create();
-    chdir("..");
+//    chdir("odes");
+//    vector<Function> odes;
+//    odes.push_back(ExternalFunction("odes"));
+//    for (int ei = 0; ei < 7; ei++) {
+//        for (int i = 0; i < L; i++) {
+//            for (int n = 0; n <= nmax; n++) {
+//                string funcname = "ode_" + to_string(ei) + "_" + to_string(i) + "_" + to_string(n);
+//                odes.push_back(ExternalFunction(funcname));
+//            }
+//        }
+//    }
+//    SumFunction sf(odes);
+//    Function ode_func = sf.create();
+//    chdir("..");
     
     double taui;
     for (;;) {
@@ -694,22 +694,22 @@ void build_ode() {
         ode[2 * j] = 0;
         ode[2 * j + 1] = 0;
         try {
-            ode[2 * j] += 0.5 * HSrdf[2 * j];
+            ode[2 * j] += 2*0.5 * HSrdf[2 * j];
         }
         catch (CasadiException& e) {
         }
         try {
-            ode[2 * j] -= 0.5 * HSidf[2 * j + 1];
+            ode[2 * j] -= 2*0.5 * HSidf[2 * j + 1];
         }
         catch (CasadiException& e) {
         }
         try {
-            ode[2 * j + 1] += 0.5 * HSidf[2 * j];
+            ode[2 * j + 1] += 2*0.5 * HSidf[2 * j];
         }
         catch (CasadiException& e) {
         }
         try {
-            ode[2 * j + 1] += 0.5 * HSrdf[2 * j + 1];
+            ode[2 * j + 1] += 2*0.5 * HSrdf[2 * j + 1];
         }
         catch (CasadiException& e) {
         }
@@ -829,8 +829,8 @@ void build_odes() {
  */
 int main(int argc, char** argv) {
     
-//    build_odes();
-//    return 0;
+    build_odes();
+    return 0;
 
     ptime begin = microsec_clock::local_time();
 
@@ -935,8 +935,19 @@ int main(int argc, char** argv) {
 
         managed_shared_memory segment(create_only, "SharedMemory", size);
 
+        xi = {1.01015958087519, 0.914144976064563, 1.04162956443615, \
+1.0679898084607, 0.958180948719382};
         worker_input* w_input = initialize(Wi, Wf, mui, scale, xi, segment);
-//        return 0;
+        void_allocator void_alloc2(segment.get_segment_manager());
+        complex_vector_vector fv(L, complex_vector(dim, void_alloc2), void_alloc2);
+        for (int i = 0; i < L; i++) {
+            for (int n = 0; n < dim; n++) {
+//                fv[i][n] = complex<double>(0.25, 0.25);
+                fv[i][n] = complex<double>((i+n+2)/(2.*L*dim), (i+n+1)/(2.*L*dim));
+            }
+        }
+        cout << b(fv, 0, w_input->J0, w_input->U0) << endl;
+        return 0;
 
         void_allocator void_alloc(segment.get_segment_manager());
         char_string integrator(intg.begin(), intg.end(), void_alloc);
