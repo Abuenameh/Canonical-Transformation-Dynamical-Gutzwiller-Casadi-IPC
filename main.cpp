@@ -344,8 +344,11 @@ worker_input* initialize(double Wi, double Wf, double mu, double scale, vector<d
     vector<double> x0 = res["x"].nonzeros();
 //        vector<double> x0 = xrand;
 //    cout << "x0 = " << ::math(x0) << endl;
-//    cout << "E0 = " << ::math(res["f"].toScalar()) << endl;
+    cout << "E0 = " << ::math(res["f"].toScalar()) << endl;
 
+    map<string, DMatrix> res3 = solver(arg);
+    cout << "E02 = " << ::math(res3["f"].toScalar()) << endl;
+    
     vector<complex<double>> x0i(dim);
     for (int i = 0; i < L; i++) {
         for (int n = 0; n <= nmax; n++) {
@@ -829,8 +832,8 @@ void build_odes() {
  */
 int main(int argc, char** argv) {
     
-    build_odes();
-    return 0;
+//    build_odes();
+//    return 0;
 
     ptime begin = microsec_clock::local_time();
 
@@ -936,7 +939,7 @@ int main(int argc, char** argv) {
         managed_shared_memory segment(create_only, "SharedMemory", size);
 
         worker_input* w_input = initialize(Wi, Wf, mui, scale, xi, segment);
-//        return 0;
+        return 0;
 
         void_allocator void_alloc(segment.get_segment_manager());
         char_string integrator(intg.begin(), intg.end(), void_alloc);
